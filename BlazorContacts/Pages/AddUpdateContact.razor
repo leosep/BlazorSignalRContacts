@@ -1,0 +1,110 @@
+﻿@page "/contacts/add"
+@page "/contacts/edit/{contactId:guid}"
+@using Microsoft.AspNetCore.SignalR.Client
+@using BlazorContacts.Models
+
+@inject NavigationManager NavigationManager
+
+@using Services;
+@inject IContactService contactService;
+<PageTitle></PageTitle>
+
+<h3>@Title</h3>
+<a href="/contacts" class="btn btn-outline-dark">Show All</a>
+<div class="row">
+    <div class="col-md-6">
+        <EditForm Model="@contact" OnValidSubmit="UpdateContacts">
+            <DataAnnotationsValidator/>
+
+            <div class="form-group">
+                <label for="Name">Name</label>
+                <InputText class="form-control" @bind-Value="contact.FullName" />
+                <ValidationMessage For="@(()=>contact.FullName)"/>
+            </div>
+            <div class="form-group">
+                <label for="Email">Email</label>
+                <InputText class="form-control" @bind-Value="contact.Email" />
+                <ValidationMessage For="@(()=>contact.Email)" />
+            </div>
+             <div class="form-group">
+                <label for="Phone">Phone</label>
+                <InputNumber class="form-control" @bind-Value="contact.Phone" />
+                <ValidationMessage For="@(()=>contact.Phone)"/>
+            </div>
+            <div class="form-group">
+                <label for="Address">Address</label>
+                <InputText class="form-control" @bind-Value="contact.Address" />
+                <ValidationMessage For="@(()=>contact.Address)" />
+            </div>
+
+            <div class="my-2">
+                @message
+            </div>
+
+            <div class="my-2">
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+   
+    private string Title = "Add Contact";
+    private string message = string.Empty;
+    Contact contact = new Contact();
+    private HubConnection hubConnection;
+
+    [Parameter]
+    public Guid ContactId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        hubConnection = new HubConnectionBuilder()
+                  .WithUrl(NavigationManager.ToAbsoluteUri("/ContactHub"))
+                  .Build();
+
+        await hubConnection.StartAsync(); 
+
+        if (ContactId != Guid.Empty)
+        {
+            Title = "Update Contact";
+            contact = await contactService.FindById(ContactId);
+        }
+    }
+
+    public bool IsConnected =>
+        hubConnection.State == HubConnectionState.Connected;
+
+    public async Task UpdateContacts()
+    {          
+        message = "wait...";
+        if (await contactService.AddUpdate(contact))
+        {
+            message = "Successfully added";
+            contact = new();
+        }
+        else
+        {
+            message = "Could not be saved";
+        }
+
+        if (IsConnected) await SendMessage();
+        NavigationManager.NavigateTo("Contacts");
+    }
+
+    Task SendMessage() => hubConnection.SendAsync("SendMessage");
+
+    void Cancel()
+    {
+        NavigationManager.NavigateTo("Contacts");
+    }
+
+    public void Dispose()
+    {
+        _ = hubConnection.DisposeAsync();
+    }
+
+
+}

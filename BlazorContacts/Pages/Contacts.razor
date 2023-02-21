@@ -1,0 +1,98 @@
+﻿@page "/contacts"
+@using Services 
+
+@using Microsoft.AspNetCore.SignalR.Client
+@using BlazorContacts.Models
+
+@inject NavigationManager NavigationManager
+
+@inject IContactService contactService
+@inject IJSRuntime jsRuntime
+
+<h3>Contacts</h3>
+<a href="/contacts/add" class="btn btn-outline-dark">Add New</a>
+<div class="row">
+    <div class="col-md-6">
+        @if (contacts == null) {
+            <p>Loading...</p>
+        }
+        else
+        {
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Address</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach(var contact in contacts)  
+                {
+                    <tr>
+                        <td>@contact.FullName</td>
+                        <td>@contact.Email</td>
+                        <td>@contact.Phone</td>
+                        <td>@contact.Address</td>
+                        <td>
+                            <a href="/contacts/edit/@contact.Id" class="btn btn-success">Edit</a>
+                            <a class="btn btn-danger" @onclick="async ()=> await DeleteContact(contact)">Delete</a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private List<Models.Contact> contacts = new();
+    private HubConnection hubConnection;
+    protected override async Task OnInitializedAsync() 
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/ContactHub"))
+            .Build();
+
+        hubConnection.On("ReceiveMessage", () =>
+        {
+            LoadData();
+        });
+
+        await hubConnection.StartAsync();
+        LoadData();
+    }
+
+    public bool IsConnected =>
+       hubConnection.State == HubConnectionState.Connected;
+
+    protected async void LoadData()
+    {
+        contacts = await contactService.GetAll();
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    public async Task DeleteContact(Contact contact)
+    {
+        bool confirmed = await jsRuntime.InvokeAsync<bool>("confirm", "Sure?");
+        if (confirmed)
+        {
+            await contactService.Delete(contact.Id);
+            if (IsConnected) await SendMessage();
+            InvokeAsync(() => StateHasChanged());
+        }    
+    }
+
+    Task SendMessage() => hubConnection.SendAsync("SendMessage");
+
+    public void Dispose() {
+        _ = hubConnection.DisposeAsync();
+    }
+
+
+
+}

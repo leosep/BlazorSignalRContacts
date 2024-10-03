@@ -1,2 +1,2 @@
 # Blazor_SignalR_Contacts
-Blazor_SignalR_Contacts
+Example of Blazor+SignalR
